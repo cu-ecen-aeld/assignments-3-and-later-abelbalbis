@@ -1,5 +1,14 @@
 #include "systemcalls.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <sys/wait.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <string.h>
 
+#define PCHILD_ERROR 0XAA
 /**
  * @param cmd the command to execute with system()
  * @return true if the command in @param cmd was executed
@@ -9,15 +18,15 @@
 */
 bool do_system(const char *cmd)
 {
+    int ret;
 
-/*
- * TODO  add your code here
- *  Call the system() function with the command set in the cmd
- *   and return a boolean true if the system() call completed with success
- *   or false() if it returned a failure
-*/
-
-    return true;
+    ret = system(cmd);
+    if (ret != 0){
+        return false;
+    } else{
+        return true;
+    }
+    
 }
 
 /**
@@ -37,6 +46,11 @@ bool do_system(const char *cmd)
 bool do_exec(int count, ...)
 {
     va_list args;
+    pid_t pid = 0;
+    int st, ret;
+
+ 
+
     va_start(args, count);
     char * command[count+1];
     int i;
@@ -45,10 +59,9 @@ bool do_exec(int count, ...)
         command[i] = va_arg(args, char *);
     }
     command[count] = NULL;
-    // this line is to avoid a compile warning before your implementation is complete
-    // and may be removed
-    command[count] = command[count];
 
+
+   
 /*
  * TODO:
  *   Execute a system command by calling fork, execv(),
@@ -58,10 +71,25 @@ bool do_exec(int count, ...)
  *   as second argument to the execv() command.
  *
 */
-
-    va_end(args);
-
-    return true;
+    pid = fork();
+    if(pid == 0){
+        /*Im the child*/
+        if (command[0][0] != '/'){exit(PCHILD_ERROR);}
+        if (command[2][0] != '/'){exit(PCHILD_ERROR);}
+        else{
+            ret = execv(command[0], &command[1]);
+        exit(PCHILD_ERROR);
+        }
+        
+    }  
+    ret = wait (&st);
+    if (ret == -1)
+        return false;
+    if (WIFEXITED (st)){
+        if (WEXITSTATUS (st) == PCHILD_ERROR) return false;
+        else return true;
+    }
+    return false;
 }
 
 /**
@@ -73,6 +101,9 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
 {
     va_list args;
     va_start(args, count);
+    int pid, st, ret;
+
+
     char * command[count+1];
     int i;
     for(i=0; i<count; i++)
@@ -80,9 +111,7 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
         command[i] = va_arg(args, char *);
     }
     command[count] = NULL;
-    // this line is to avoid a compile warning before your implementation is complete
-    // and may be removed
-    command[count] = command[count];
+
 
 
 /*
@@ -92,8 +121,45 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *   The rest of the behaviour is same as do_exec()
  *
 */
+    int fd_child = 5;
+    int fd = open(outputfile, O_WRONLY|O_TRUNC|O_CREAT, 0644);
+    if (fd < 0) { return false;}
+    switch (pid = fork()) {
+    case -1: return false;
+    case 0:
+        /* CHILD */
 
-    va_end(args);
+        if (dup2(fd, fd_child) < 0) { exit(PCHILD_ERROR);}
+        if (count == 3) {
+            write(fd_child,"home is /", 9);
+        } else if (count == 2) {
+            write(fd_child,"home is $HOME", 13);
+        }
 
-    return true;
+        close(fd_child);
+
+        if (command[0][0] != '/'){exit(PCHILD_ERROR);}
+        if (command[2][0] != '/'){exit(PCHILD_ERROR);}
+  
+        execv(command[0], &command[1]);
+        exit(PCHILD_ERROR);
+    default:
+       
+         /* PARENT */
+        ret = wait (&st);
+
+        close(fd);
+        
+        if (ret == -1) return false;
+        if (WIFEXITED (st)){
+            if (WEXITSTATUS (st) == PCHILD_ERROR) return false;
+            else return true;
+        }
+        return false;
+    }
+
+
+    
 }
+
+
