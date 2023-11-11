@@ -8,7 +8,9 @@
 #include <errno.h>
 #include <string.h>
 
+
 #define PCHILD_ERROR 0XAA
+
 /**
  * @param cmd the command to execute with system()
  * @return true if the command in @param cmd was executed
@@ -49,7 +51,6 @@ bool do_exec(int count, ...)
     pid_t pid = 0;
     int st, ret;
 
- 
 
     va_start(args, count);
     char * command[count+1];
@@ -59,7 +60,6 @@ bool do_exec(int count, ...)
         command[i] = va_arg(args, char *);
     }
     command[count] = NULL;
-
 
    
 /*
@@ -74,13 +74,9 @@ bool do_exec(int count, ...)
     pid = fork();
     if(pid == 0){
         /*Im the child*/
-        if (command[0][0] != '/'){exit(PCHILD_ERROR);}
         if (command[2][0] != '/'){exit(PCHILD_ERROR);}
-        else{
-            ret = execv(command[0], &command[1]);
+        ret = execvp(command[0], &command[1]);
         exit(PCHILD_ERROR);
-        }
-        
     }  
     ret = wait (&st);
     if (ret == -1)
@@ -102,12 +98,17 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
     va_list args;
     va_start(args, count);
     int pid, st, ret;
-
+    int fd;
+    char *envp[] ={
+        "HOME=/home",
+        NULL
+    };
 
     char * command[count+1];
     int i;
     for(i=0; i<count; i++)
     {
+        
         command[i] = va_arg(args, char *);
     }
     command[count] = NULL;
@@ -121,35 +122,26 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *   The rest of the behaviour is same as do_exec()
  *
 */
-    int fd_child = 5;
-    int fd = open(outputfile, O_WRONLY|O_TRUNC|O_CREAT, 0644);
-    if (fd < 0) { return false;}
+
+   
+    fd = open(outputfile, O_WRONLY|O_CREAT|O_EXCL|O_FSYNC, 0644); 
+
     switch (pid = fork()) {
     case -1: return false;
-    case 0:
-        /* CHILD */
-
-        if (dup2(fd, fd_child) < 0) { exit(PCHILD_ERROR);}
-        if (count == 3) {
-            write(fd_child,"home is /", 9);
-        } else if (count == 2) {
-            write(fd_child,"home is $HOME", 13);
-        }
-
-        close(fd_child);
-
-        if (command[0][0] != '/'){exit(PCHILD_ERROR);}
-        if (command[2][0] != '/'){exit(PCHILD_ERROR);}
-  
-        execv(command[0], &command[1]);
+    case 0:    
+        if (fd < 0) { return false;}
+        dup2(fd, 1);
+        //lseek(fd,0,SEEK_SET);
+        close(fd);
+        execve(command[0], &command[1],envp);
+        //execv(command[0], &command[1]);
         exit(PCHILD_ERROR);
     default:
-       
-         /* PARENT */
-        ret = wait (&st);
+ 
+        ret = waitpid (pid, &st, 0);
 
         close(fd);
-        
+
         if (ret == -1) return false;
         if (WIFEXITED (st)){
             if (WEXITSTATUS (st) == PCHILD_ERROR) return false;
@@ -157,6 +149,8 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
         }
         return false;
     }
+
+ 
 
 
     
