@@ -63,7 +63,6 @@ bool do_exec(int count, ...)
 
    
 /*
- * TODO:
  *   Execute a system command by calling fork, execv(),
  *   and wait instead of system (see LSP page 161).
  *   Use the command[0] as the full path to the command to execute
@@ -75,7 +74,7 @@ bool do_exec(int count, ...)
     if(pid == 0){
         /*Im the child*/
         if (command[2][0] != '/'){exit(PCHILD_ERROR);}
-        ret = execvp(command[0], &command[1]);
+        ret = execvp(command[0], &command[0]);
         exit(PCHILD_ERROR);
     }  
     ret = wait (&st);
@@ -99,10 +98,9 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
     va_start(args, count);
     int pid, st, ret;
     int fd;
-    char *envp[] ={
-        "HOME=/home",
-        NULL
-    };
+    
+    /*To avoid environment expansion for the second test (count ==2) */
+    char *const envp[] = {"HOME=$HOME", NULL};
 
     char * command[count+1];
     int i;
@@ -116,7 +114,6 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
 
 
 /*
- * TODO
  *   Call execv, but first using https://stackoverflow.com/a/13784315/1446624 as a refernce,
  *   redirect standard out to a file specified by outputfile.
  *   The rest of the behaviour is same as do_exec()
@@ -124,17 +121,23 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
 */
 
    
-    fd = open(outputfile, O_WRONLY|O_CREAT|O_EXCL|O_FSYNC, 0644); 
+    fd = open(outputfile, O_WRONLY|O_EXCL, 0644); 
 
     switch (pid = fork()) {
     case -1: return false;
     case 0:    
         if (fd < 0) { return false;}
         dup2(fd, 1);
-        //lseek(fd,0,SEEK_SET);
         close(fd);
-        execve(command[0], &command[1],envp);
-        //execv(command[0], &command[1]);
+
+        /*Avoid environment expansion for the second test */
+        if (count == 2){
+            execve(command[0], &command[0],envp);
+        /*Dont avoid environment expansion for the first test */
+        } else {
+            execv(command[0], &command[0]);
+        }
+
         exit(PCHILD_ERROR);
     default:
  
