@@ -133,9 +133,9 @@ static void signal_action_hdlr(int signal){
     exit(0);
 }
 
-int main(void)
+int main(int argc, char *argv[])
 {
-    int  status, len;
+    int  status, len, is_daemon;
     struct addrinfo hints;
     struct addrinfo *srvinfo, *p;
     int yes = 1;
@@ -145,6 +145,37 @@ int main(void)
     char buf[MAX_DATASIZE];
     char *buf_pt;
     struct sigaction sa;
+
+    if ((argc == 2)  && (strcmp(argv[1], "--help")== 0)){
+    
+        printf("aesdscket [-d]\n");
+        printf("OPTIONS\n");
+        printf("-d   daemon mode\n");
+        return 0;
+    } 
+
+
+    if ((argc == 2)  && (strcmp(argv[1], "-d")== 0)){
+        is_daemon = 1;
+    }  else {
+        is_daemon = 0;
+    }
+
+
+    if(is_daemon){
+
+        int nochdir = 0;
+
+        // redirect standard input, output and error to /dev/null
+        // this is equivalent to "closing the file descriptors"
+        int noclose = 0;
+
+        // glibc call to daemonize this process without a double fork
+        if(daemon(nochdir, noclose))
+        perror("daemon");
+
+    }
+
 
     openlog(NULL, 0, LOG_USER);
     memset(&sa, 0, sizeof(struct sigaction));
@@ -209,6 +240,9 @@ int main(void)
     {
         exit(-1);
     }
+
+
+
 
     while (1)
     { // main accept() loop
